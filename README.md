@@ -1,61 +1,74 @@
 # Urban Heat Island (UHI) Effect Analysis — Lagos State, Nigeria
 
-Analysis of the **Urban Heat Island effect** in Lagos State, Nigeria: comparing daily urban vs. rural temperatures across 2024 to quantify how much warmer built-up areas run compared to nearby rural areas, and how that gap changes through the year.
+Analysis of the **Urban Heat Island effect** in Lagos State using **real 2024 temperature data**: an urban point in Ikeja (Lagos mainland) compared against a rural point in Epe, a predominantly agrarian LGA in eastern Lagos State — cross-checked against a real weather station before drawing any conclusions.
 
 ![Urban vs rural temperature trend](images/urban_vs_rural_trend.png)
 
-## Background
+## Data sources
 
-The Urban Heat Island effect describes how cities tend to be significantly warmer than their surrounding rural areas, mainly due to reduced vegetation, heat-retaining surfaces (asphalt, concrete), and waste heat from human activity. This project puts that concept into practice with a full, small-scale analysis workflow: load data, clean it, visualize trends, and summarize findings.
+There is no public rural weather station near Lagos, so this project combines two real, freely available sources rather than relying on simulated data:
 
-## Objectives
+| Source | What it provides | Access |
+|---|---|---|
+| [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api) (ERA5-Land reanalysis, ECMWF) | Daily max/min/mean temperature at the urban and rural points | Free, no API key |
+| [NOAA GHCN-Daily](https://www.ncei.noaa.gov/pub/data/ghcn/daily/), station `NIM00065201` | Real observations from Murtala Muhammed International Airport, Lagos | Free, public archive |
 
-- Compare urban vs. rural daily temperature trends over a full year.
-- Quantify the average and peak magnitude of the UHI effect (urban − rural temperature difference).
-- Identify seasonal patterns in how the UHI effect changes month to month.
+ERA5-Land is a reanalysis product — real observations, satellite data, and a physical land-surface model blended onto a ~9 km grid — used here for both points since no public ground station exists in rural Lagos State. To make sure that stand-in is trustworthy, the ERA5-Land series for the urban point is validated directly against the real NOAA station at almost the same location before it's used for anything else (see [notebook section 2](notebooks/uhi_lagos_analysis.ipynb)).
 
-## Data
+The full pipeline is reproducible with one command:
 
-- [`data/urban_heat_island_demo.xlsx`](data/urban_heat_island_demo.xlsx) — daily temperature readings for urban and rural areas of Lagos State, January 1 – December 31, 2024 (366 days).
-- Columns: `Date`, `Urban_Temperature`, `Rural_Temperature`, `Temperature_Difference`.
-- **This dataset is simulated**, generated to reflect realistic UHI patterns for Lagos rather than pulled from a live sensor or satellite feed. It was built for practicing and demonstrating this analysis workflow. See [Limitations](#limitations--next-steps) for how this would be extended with real data.
+```bash
+python scripts/fetch_data.py
+```
+
+which pulls both sources fresh and rebuilds `data/lagos_uhi_2024.csv` and `data/lagos_airport_station_2024.csv`.
 
 ## Key findings
 
 | Metric | Value |
 |---|---|
-| Mean urban temperature | 31.9°C |
-| Mean rural temperature | 29.1°C |
-| Average UHI effect (urban − rural) | +2.79°C |
-| Maximum UHI effect | +6.76°C |
-| Days urban warmer than rural | 354 / 366 (~97%) |
-| Urban–rural correlation | r ≈ 0.77 |
+| Validation: ERA5-Land vs. real station (TMax) | MAE 1.36°C, r = 0.90 |
+| Validation: ERA5-Land vs. real station (TMin) | MAE 1.02°C, r = 0.63 |
+| Average daytime UHI effect (urban TMax − rural TMax) | +0.91°C |
+| Maximum daytime UHI effect | +3.20°C |
+| Average nighttime difference (urban TMin − rural TMin) | −0.21°C |
+| Days urban daytime high exceeds rural | 311 / 366 (~85%) |
 
-Urban and rural temperatures move together (both follow the same broader weather patterns), but urban areas run consistently 2–3°C hotter on top of that — the signature of the UHI effect. The gap is present in every month, peaking around February and easing slightly in October.
+**The UHI effect here is a daytime signal, not a 24-hour one, and it has a strong seasonal pattern.** Daytime highs in Ikeja run about 0.9°C above Epe on average — but that effect is **2–3x stronger in the dry season (Nov–May, up to +2.3°C in December) than in the rainy season (Jun–Oct, as low as +0.2°C)**, likely because rainy-season cloud cover and evaporative cooling narrow the gap almost everywhere. Nighttime lows show no equivalent urban warming at this resolution — in fact Ikeja runs marginally *cooler* than Epe overnight on average, the opposite of the classic "city traps heat overnight" pattern, possibly reflecting a coastal moderating effect or the weaker nighttime accuracy of the reanalysis (see validation above).
 
 <p float="left">
-  <img src="images/temperature_distribution.png" width="49%" alt="Temperature distribution boxplot" />
-  <img src="images/monthly_uhi_effect.png" width="49%" alt="Average UHI effect by month" />
+  <img src="images/diurnal_uhi_effect.png" width="49%" alt="UHI effect by time of day" />
+  <img src="images/monthly_uhi_effect.png" width="49%" alt="Daytime UHI effect by month" />
 </p>
 
-## Conclusion
+## Why this matters more than it might look
 
-The results illustrate the kind of impact urbanization can have on local temperatures in a city like Lagos: a persistent multi-degree gap between built-up and rural areas. Urban planners can mitigate this through expanded green spaces, increased tree cover, and building materials/designs with lower heat retention.
+A naive urban-vs-rural comparison could easily have reported a single flat number and moved on. Splitting the analysis by time of day and by season surfaced two findings that would otherwise have been hidden: the effect is concentrated in daytime hours, and it swings by more than 2°C across the year depending on season. That's the kind of nuance real data forces you to deal with — a synthetic dataset would never have raised these questions in the first place.
 
 ## Limitations & next steps
 
-- The dataset is simulated, not observed — real magnitude/seasonality would need validation against actual station data or satellite land surface temperature (e.g. MODIS/Landsat).
-- With real data, next steps would include controlling for confounders (humidity, wind, rainfall) and analyzing the effect at a sub-city (neighborhood) resolution instead of a single urban/rural pair.
+- **Spatial resolution**: ERA5-Land's ~9 km grid cells blend urban and surrounding land cover, diluting the true urban heat signal compared to ground-level conditions in central Lagos. Satellite land-surface temperature (MODIS MOD11A2 or Landsat 8/9 thermal bands, both accessible via Google Earth Engine) would resolve intra-city variation far better and is the natural next iteration of this project.
+- **Two-point comparison**: this compares one urban and one rural point, not a full urban-vs-rural land-cover classification across Lagos State.
+- **Single rural proxy**: Epe was chosen as a genuinely agrarian LGA, but its own proximity to the Lagos Lagoon may moderate its temperatures in ways that don't generalize to all rural areas of the state.
+- **Nighttime validation gap**: weaker station agreement for TMin (r ≈ 0.63) means the nighttime finding should be treated as a hypothesis pending better nighttime data, not a settled result.
+- **One year of data**: 2024 alone can't separate a genuine climatological pattern from one year's weather variability.
 
 ## Project structure
 
 ```
 UHI_Analysis/
 ├── data/
-│   └── urban_heat_island_demo.xlsx    # simulated daily temperature data
+│   ├── raw/                              # untouched API/station responses
+│   │   ├── era5_urban_ikeja.json
+│   │   ├── era5_rural_epe.json
+│   │   └── lagos_airport_ghcn.csv.gz
+│   ├── lagos_uhi_2024.csv                # merged, analysis-ready urban/rural dataset
+│   └── lagos_airport_station_2024.csv    # real station observations, for validation
+├── scripts/
+│   └── fetch_data.py                     # reproducible pull from Open-Meteo + NOAA
 ├── notebooks/
-│   └── uhi_lagos_analysis.ipynb       # full analysis notebook
-├── images/                            # exported charts (used in this README)
+│   └── uhi_lagos_analysis.ipynb          # full analysis notebook
+├── images/                                # exported charts (used in this README)
 ├── requirements.txt
 └── README.md
 ```
@@ -66,12 +79,13 @@ UHI_Analysis/
 git clone https://github.com/ChristechAnalytics/UHI_Analysis.git
 cd UHI_Analysis
 pip install -r requirements.txt
+python scripts/fetch_data.py          # optional: refresh the data from source
 jupyter notebook notebooks/uhi_lagos_analysis.ipynb
 ```
 
 ## Tech stack
 
-Python, pandas, NumPy, Matplotlib, Seaborn, Jupyter
+Python, pandas, NumPy, Matplotlib, Seaborn, Jupyter — Open-Meteo (ERA5-Land) and NOAA GHCN-Daily as data sources.
 
 ## Author
 
